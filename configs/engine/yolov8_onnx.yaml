@@ -1,7 +1,7 @@
 # YOLOv8 TensorRT engine configs
 
 yolo:
-  engine_path: "tmp/models/yolov8_s_trt8.plan" # path to the TensorRT engine
+  engine_path: tmp/models/yolov8_s.onnx # path to the TensorRT engine
   max_batch_size: 1 # max batch size
   end2end: True # whether to use end2end mode
   arch: yolov8 # model architecture
