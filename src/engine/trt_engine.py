@@ -38,7 +38,7 @@ class TrtEngine:
 
     def setup(self) -> None:
         """Setup TensorRT engine."""
-        log.info(f"Setup Widya GPU AI Engine...")
+        log.info(f"Setup TensorRT Engine...")
         logger = trt.Logger(trt.Logger.WARNING)
         logger.min_severity = trt.Logger.Severity.ERROR
         runtime = trt.Runtime(logger)
