@@ -1,4 +1,4 @@
-"""YOLO TensorRT engine module."""
+"""Yolo ONNX engine."""
 
 import rootutils
 
@@ -9,8 +9,8 @@ from typing import List, Union
 import cv2
 import numpy as np
 
-from src.engine.trt_engine import TrtEngine
-from src.schema.trt_schema import End2EndResultSchema, HostMemBufferSchema
+from src.engine.onnx_engine import CommonOnnxEngine
+from src.schema.onnx_schema import OnnxRunEnd2EndOutputSchema
 from src.schema.yolo_schema import YoloResultSchema
 from src.utils.logger import get_logger
 from src.utils.nms_utils import multiclass_nms
@@ -18,38 +18,35 @@ from src.utils.nms_utils import multiclass_nms
 log = get_logger()
 
 
-class YoloTrtEngine(TrtEngine):
-    """YOLO TensorRT engine module."""
+class YoloOnnxEngine(CommonOnnxEngine):
+    """Yolo ONNX engine module."""
 
     def __init__(
         self,
         engine_path: str,
-        max_batch_size: int,
         categories: List[str],
+        provider: str = "cpu",
         end2end: bool = False,
         arch: str = "yolox",
         pretrained: bool = False,
-        max_det_end2end: int = 100,
     ) -> None:
         """
-        Initialize YOLO TensorRT engine.
+        Initialize Yolo ONNX engine.
 
         Args:
-            engine_path (str): Path to TensorRT model file.
-            max_batch_size (int): Maximum batch size for inference.
+            engine_path (str): Path to ONNX engine.
             categories (List[str]): List of categories.
-            end2end (bool): End-to-end inference flag.
-            arch (str): YOLO architecture. Defaults to "yolox".
-            pretrained (bool): Whether the model is pretrained (COCO with 80 classes).
-            max_det_end2end (int): Maximum number of detections in end-to-end mode.
+            provider (str, optional): Inference provider. Defaults to "cpu".
+            end2end (bool, optional): Whether to use end2end model. Defaults to False.
+            arch (str, optional): Yolo architecture. Defaults to "yolox".
+            pretrained (bool, optional): Whether to use pretrained model. Defaults to False.
         """
         assert arch in ["yolox", "yolov8"], "Invalid architecture"
-        super().__init__(engine_path, max_batch_size)
+        super().__init__(engine_path, provider)
         self.categories = categories
         self.end2end = end2end
         self.arch = arch
         self.pretrained = pretrained
-        self.max_det_end2end = max_det_end2end
 
         self.normalize = False if self.arch == "yolox" else True
 
@@ -71,18 +68,18 @@ class YoloTrtEngine(TrtEngine):
             List[YoloResultSchema]: List of detection results.
         """
         imgs, ratios, pads = self.preprocess_imgs(imgs, normalize=self.normalize)
-        outputs = self.forward(imgs)
+        outputs = self.engine.run(None, {self.metadata[0].input_name: imgs})
         if self.end2end:
-            results = self.postprocess_end2end(outputs, ratios, pads, conf)
+            outputs = self.postprocess_end2end(outputs, ratios, pads, conf)
         else:
-            results = self.postprocess_nms(outputs, ratios, pads, conf, nms)
+            outputs = self.postprocess_nms(outputs, ratios, pads, conf, nms=nms)
 
-        return results
+        return outputs
 
     def preprocess_imgs(
         self,
         imgs: Union[np.ndarray, List[np.ndarray]],
-        mode: str = "center",
+        mode="center",
         normalize: bool = True,
     ) -> np.ndarray:
         """
@@ -96,15 +93,12 @@ class YoloTrtEngine(TrtEngine):
         Returns:
             np.ndarray: Preprocessed image(s) in size (B, C, H, W).
         """
-        assert mode in ["center", "left"]
+        assert mode in ["center", "left"], "Invalid mode, must be 'center' or 'left'"
         if isinstance(imgs, np.ndarray):
-            # convert PNG to JPEG
-            if imgs.shape[-1] == 4:
-                imgs = cv2.cvtColor(imgs, cv2.COLOR_RGBA2RGB)
             imgs = [imgs]
 
         # resize and pad
-        dst_h, dst_w = self.img_shape[2:]
+        dst_h, dst_w = self.img_shape
         resized_imgs = np.ones((len(imgs), dst_h, dst_w, 3), dtype=np.float32) * 114
         ratios = np.ones((len(imgs)), dtype=np.float32)
         pads = np.ones((len(imgs), 2), dtype=np.float32)
@@ -136,76 +130,62 @@ class YoloTrtEngine(TrtEngine):
 
     def postprocess_end2end(
         self,
-        outputs: List[HostMemBufferSchema],
+        outputs: List[np.ndarray],
         ratios: np.ndarray,
         pads: np.ndarray,
         conf: float = 0.25,
     ) -> List[YoloResultSchema]:
         """
-        Postprocess outputs in end-to-end mode.
+        Postprocess end2end ONNX engine.
 
         Args:
-            outputs (List[HostMemBufferSchema]): Model outputs.
-            ratios (np.ndarray): Resizing ratios.
-            pads (np.ndarray): Padding values.
+            outputs (List[np.ndarray]): ONNX engine outputs.
+            ratios (np.ndarray): Image ratios.
+            pads (np.ndarray): Image pads.
             conf (float, optional): Confidence threshold. Defaults to 0.25.
 
         Returns:
             List[YoloResultSchema]: List of detection results.
         """
-        end2end_output: List[End2EndResultSchema] = []
-        for i in range(len(ratios)):  # iterate over imgs in batch
-            # NOTE: assume bbox have 4 * 100 candidates score have 100 candidates, and index have 100 candidates
-            num_det = outputs[0].host[i]
-            bbox = outputs[1].host[
-                (i * 4 * self.max_det_end2end) : ((i + 1) * 4 * self.max_det_end2end)
-            ]
-            score = outputs[2].host[
-                (i * self.max_det_end2end) : ((i + 1) * self.max_det_end2end)
-            ]
-            class_index = outputs[3].host[
-                (i * self.max_det_end2end) : ((i + 1) * self.max_det_end2end)
-            ]
-            end2end_output.append(
-                End2EndResultSchema(
-                    num_det=num_det,
-                    boxes=bbox,
-                    scores=score,
-                    categories=class_index,
+
+        # parsing ort run outputs
+        run_outputs: List[OnnxRunEnd2EndOutputSchema] = []
+        for i in range((outputs[0].shape[0])):  # batch size
+            num_det = int(outputs[0][i][0])
+            boxes = outputs[1][i][:num_det]
+            scores = outputs[2][i][:num_det]
+            classes = outputs[3][i][:num_det]
+            run_outputs.append(
+                OnnxRunEnd2EndOutputSchema(
+                    num_det=num_det, boxes=boxes, scores=scores, classes=classes
                 )
             )
 
         # scaling and filtering
         results: List[YoloResultSchema] = []
-        for i, out in enumerate(end2end_output):
-            num_det = int(out.num_det)
-            bbox = out.boxes[: num_det * 4].reshape(-1, 4)
-            score = out.scores[:num_det]
-            class_index = out.categories[:num_det]
-
+        for i, out in enumerate(run_outputs):
             # scale bbox to original image size
-            bbox[:, 0] -= pads[i, 0]
-            bbox[:, 1] -= pads[i, 1]
-            bbox[:, 2] -= pads[i, 0]
-            bbox[:, 3] -= pads[i, 1]
-            bbox /= ratios[i]
+            out.boxes[:, 0::2] -= pads[i][0]
+            out.boxes[:, 1::2] -= pads[i][1]
+            out.boxes /= ratios[i]
 
-            # filter by confidence and class
-            mask_score = score > conf
-            mask_class = class_index < len(self.categories)
-            bbox: np.ndarray = bbox[mask_score & mask_class]
-            score = score[mask_score & mask_class]
-            class_index = class_index[mask_score & mask_class]
+            # filter by confidence
+            mask = out.scores > conf
+            out.boxes = out.boxes[mask].astype(np.int32)
+            out.scores = out.scores[mask]
+            out.classes = out.classes[mask]
 
-            if len(bbox) == 0:
-                results.append(YoloResultSchema())
-                continue
+            # filter by class
+            mask = out.classes < len(self.categories)
+            out.boxes = out.boxes[mask]
+            out.scores = out.scores[mask]
+            out.classes = out.classes[mask]
 
             results.append(
                 YoloResultSchema(
-                    boxes=bbox.astype(np.int32).tolist(),
-                    scores=score.tolist(),
-                    categories=[self.categories[i] for i in class_index.tolist()],
+                    categories=[self.categories[int(i)] for i in out.classes],
+                    scores=out.scores,
+                    boxes=out.boxes,
                 )
             )
 
@@ -213,37 +193,29 @@ class YoloTrtEngine(TrtEngine):
 
     def postprocess_nms(
         self,
-        outputs: List[HostMemBufferSchema],
+        outputs: List[np.ndarray],
         ratios: np.ndarray,
         pads: np.ndarray,
         conf: float = 0.25,
         nms: float = 0.45,
     ) -> List[YoloResultSchema]:
         """
-        Postprocess outputs with NMS.
+        Postprocess NMS ONNX engine.
 
         Args:
-            outputs (List[HostMemBufferSchema]): Model outputs.
-            ratios (np.ndarray): Resizing ratios.
-            pads (np.ndarray): Padding values.
+            outputs (List[np.ndarray]): ONNX engine outputs.
+            ratios (np.ndarray): Image ratios.
+            pads (np.ndarray): Image pads.
             conf (float, optional): Confidence threshold. Defaults to 0.25.
             nms (float, optional): NMS threshold. Defaults to 0.45.
 
         Returns:
             List[YoloResultSchema]: List of detection results.
         """
-        # reshape outputs to (batch, -1, num_classes + 5)
-        batch_size = ratios.shape[0]
-        num_classes = len(self.categories) if not self.pretrained else 80
-        outputs: np.ndarray = outputs[0].host.reshape(
-            self.max_batch_size, -1, (num_classes + 5)
-        )
-        outputs = outputs[:batch_size]
-
-        # get boxes, scores, classes
+        outputs: np.ndarray = outputs[0]
         boxes = outputs[:, :, :4]
-        classes = outputs[:, :, 5:].argmax(axis=-1)
         scores = outputs[:, :, 4:5] * outputs[:, :, 5:]
+        classes = outputs[:, :, 5:].argmax(axis=-1)
 
         # convert xywh to xyxy
         boxes_xyxy = np.zeros_like(boxes)
@@ -252,22 +224,16 @@ class YoloTrtEngine(TrtEngine):
         boxes_xyxy[:, :, 2] = boxes[:, :, 0] + boxes[:, :, 2] / 2
         boxes_xyxy[:, :, 3] = boxes[:, :, 1] + boxes[:, :, 3] / 2
 
-        # scaling boxes to original image size
+        # scaling and filtering
         boxes_xyxy[:, :, 0] -= pads[:, 0, None]
         boxes_xyxy[:, :, 1] -= pads[:, 1, None]
         boxes_xyxy[:, :, 2] -= pads[:, 0, None]
         boxes_xyxy[:, :, 3] -= pads[:, 1, None]
         boxes_xyxy /= ratios[:, None, None]
 
-        # nms
         results: List[YoloResultSchema] = []
-        for i in range(batch_size):
-            dets = multiclass_nms(
-                boxes=boxes_xyxy[i],
-                scores=scores[i],
-                nms=nms,
-                conf=conf,
-            )
+        for i in range(outputs.shape[0]):
+            dets = multiclass_nms(boxes_xyxy[i], scores[i], nms=nms, conf=conf)
             if dets is None:
                 results.append(YoloResultSchema())
                 continue
@@ -277,22 +243,12 @@ class YoloTrtEngine(TrtEngine):
             mask_class = dets[:, -1] < len(self.categories)
             dets = dets[mask_score & mask_class]
 
-            # get class names
             class_ids = dets[:, -1].astype(np.int32).tolist()
-            class_names = [self.categories[int(i)] for i in class_ids]
-
-            # filter by class names. Ignore if class_names is "ignore"
-            if "ignore" in self.categories:
-                mask_ignore = np.array(
-                    [cls not in ["ignore"] for cls in class_names], dtype=np.bool
-                )
-                dets = dets[mask_ignore]
-                class_names = [cls for cls in class_names if cls != "ignore"]
-
+            categories = [self.categories[int(i)] for i in class_ids]
             results.append(
                 YoloResultSchema(
-                    categories=class_names,
-                    scores=dets[:, -2].tolist(),
+                    categories=categories,
+                    scores=dets[:, -2].astype(np.float32).tolist(),
                     boxes=dets[:, :-2].astype(np.int32).tolist(),
                 )
             )
