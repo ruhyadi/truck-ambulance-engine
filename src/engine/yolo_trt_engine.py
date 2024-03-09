@@ -298,3 +298,39 @@ class YoloTrtEngine(TrtEngine):
             )
 
         return results
+
+
+if __name__ == "__main__":
+    """Debugging."""
+
+    engine = YoloTrtEngine(
+        engine_path="tmp/models/yolov8_s_trt8.plan",
+        max_batch_size=1,
+        categories=[str(i) for i in range(80)],
+        end2end=True,
+        arch="yolov8",
+        pretrained=True,
+        max_det_end2end=100,
+    )
+    engine.setup()
+
+    img = cv2.imread("tmp/sample001.png")
+    results = engine.predict(img)
+
+    for res in results:
+        for box, score, category in zip(res.boxes, res.scores, res.categories):
+            x1, y1, x2, y2 = box
+            cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            cv2.putText(
+                img,
+                f"{category} {score:.2f}",
+                (x1, y1 - 10),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                (0, 255, 0),
+                2,
+            )
+
+    log.warning(f"Result: {results}")
+
+    cv2.imwrite(f"tmp/sample001_yolov8_trt8.png", img)
