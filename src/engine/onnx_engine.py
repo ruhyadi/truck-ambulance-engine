@@ -1,4 +1,4 @@
-"""Common ONNX engine."""
+"""ONNX engine."""
 
 import rootutils
 
@@ -15,12 +15,12 @@ from src.utils.logger import get_logger
 log = get_logger()
 
 
-class CommonOnnxEngine:
-    """Common ONNX runtime engine module."""
+class OnnxEngine:
+    """ONNX runtime engine module."""
 
     def __init__(self, engine_path: str, provider: str = "cpu") -> None:
         """
-        Initialize ONNX runtime common engine.
+        Initialize ONNX runtime engine.
 
         Args:
             engine_path (str): Path to ONNX runtime engine file.

@@ -9,7 +9,7 @@ from typing import List, Union
 import cv2
 import numpy as np
 
-from src.engine.onnx_engine import CommonOnnxEngine
+from src.engine.onnx_engine import OnnxEngine
 from src.schema.onnx_schema import OnnxRunEnd2EndOutputSchema
 from src.schema.yolo_schema import YoloResultSchema
 from src.utils.logger import get_logger
@@ -18,7 +18,7 @@ from src.utils.nms_utils import multiclass_nms
 log = get_logger()
 
 
-class YoloOnnxEngine(CommonOnnxEngine):
+class YoloOnnxEngine(OnnxEngine):
     """Yolo ONNX engine module."""
 
     def __init__(
