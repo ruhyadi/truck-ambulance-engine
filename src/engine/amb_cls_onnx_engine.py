@@ -99,7 +99,6 @@ class AmbulanceClsOnnxEngine(OnnxEngine):
         """
         result = ClsResultSchema()
         for i in range(imgs_shape):
-            log.warning(f"Output: {outputs[i]}")
             output = np.apply_along_axis(self.softmax_np, 1, outputs[i])
             score = round(output.max(), 2)
             if score > conf:

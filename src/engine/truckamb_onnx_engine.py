@@ -1,4 +1,4 @@
-"""Truck-ambulance tensorrt detection module."""
+"""Truck-ambulance onnx detection module."""
 
 import rootutils
 
@@ -9,78 +9,78 @@ from typing import List
 import cv2
 import numpy as np
 
-from src.engine.amb_cls_trt_engine import AmbulanceClsTrtEngine
-from src.engine.yolo_trt_engine import YoloTrtEngine
+from src.engine.amb_cls_onnx_engine import AmbulanceClsOnnxEngine
+from src.engine.yolo_onnx_engine import YoloOnnxEngine
 from src.schema.yolo_schema import YoloResultSchema
 from src.utils.logger import get_logger
 
 log = get_logger()
 
 
-class TruckAmbTrtEngine:
-    """Truck-ambulance tensorrt detection module."""
+class TruckAmbOnnxEngine:
+    """Truck-ambulance onnx detection module."""
 
     def __init__(
         self,
         det_engine_path: str,
         cls_engine_path: str,
-        det_max_batch_size: int,
         cls_max_batch_size: int,
         det_categories: List[str],
         cls_categories: List[str],
+        det_provider: str = "cpu",
+        cls_provider: str = "cpu",
         det_end2end: bool = True,
         det_arch: str = "yolov8",
-        det_pretrained: bool = False,
-        det_max_det_end2end: int = 100,
+        det_pretrained: bool = True,
     ) -> None:
         """
-        Initialize Truck-ambulance tensorrt detection module.
+        Initialize Truck-ambulance onnx detection module.
 
         Args:
             det_engine_path (str): Path to detection engine.
             cls_engine_path (str): Path to classification engine.
-            det_max_batch_size (int): Maximum batch size for detection engine.
             cls_max_batch_size (int): Maximum batch size for classification engine.
             det_categories (List[str]): List of detection categories.
             cls_categories (List[str]): List of classification categories.
+            det_provider (str, optional): Inference provider for detection. Defaults to "cpu".
+            cls_provider (str, optional): Inference provider for classification. Defaults to "cpu".
             det_end2end (bool, optional): Whether to use end2end model for detection. Defaults to True.
             det_arch (str, optional): Yolo architecture for detection. Defaults to "yolox".
             det_pretrained (bool, optional): Whether to use pretrained model for detection. Defaults to False.
-            det_max_det_end2end (int, optional): Maximum number of detections for end2end model. Defaults to 100.
         """
         self.det_engine_path = det_engine_path
         self.cls_engine_path = cls_engine_path
-        self.det_max_batch_size = det_max_batch_size
         self.cls_max_batch_size = cls_max_batch_size
         self.det_categories = det_categories
         self.cls_categories = cls_categories
+        self.det_provider = det_provider
+        self.cls_provider = cls_provider
         self.det_end2end = det_end2end
         self.det_arch = det_arch
         self.det_pretrained = det_pretrained
-        self.det_max_det_end2end = det_max_det_end2end
 
     def setup(self) -> None:
-        """Setup detection and classification engines."""
-        log.info(f"Setup truck-ambulance tensorrt engine")
-        self.det_engine = YoloTrtEngine(
+        """Setup Truck-ambulance onnx detection module."""
+        log.info(f"Setup truck-ambulance onnx engine")
+        self.det_engine = YoloOnnxEngine(
             engine_path=self.det_engine_path,
-            max_batch_size=self.det_max_batch_size,
             categories=self.det_categories,
+            provider=self.det_provider,
             end2end=self.det_end2end,
             arch=self.det_arch,
             pretrained=self.det_pretrained,
-            max_det_end2end=self.det_max_det_end2end,
         )
         self.det_engine.setup()
 
-        self.cls_engine = AmbulanceClsTrtEngine(
+        self.cls_engine = AmbulanceClsOnnxEngine(
             engine_path=self.cls_engine_path,
             max_batch_size=self.cls_max_batch_size,
             categories=self.cls_categories,
+            provider=self.cls_provider,
         )
         self.cls_engine.setup()
 
-        log.info(f"Truck-ambulance tensorrt engine setup complete")
+        log.info(f"Truck-ambulance onnx engine setup complete")
 
     def predict(
         self,
@@ -102,7 +102,7 @@ class TruckAmbTrtEngine:
             YoloResultSchema: Detection result with classification.
         """
         # detect objects
-        det_result = self.det_engine.predict(imgs=[img], conf=det_conf, nms=det_nms)[0]
+        det_result = self.det_engine.predict(img, conf=det_conf, nms=det_nms)[0]
 
         # classify detected objects
         cls_imgs = self.preprocess_cls(img, det_result)
@@ -132,7 +132,7 @@ class TruckAmbTrtEngine:
         results: List[np.ndarray] = []
         for box in det_result.boxes:
             crop_img = img[box[1] : box[3], box[0] : box[2]]
-            crop_img = cv2.resize(crop_img, self.cls_engine.img_shape[2:])
+            crop_img = cv2.resize(crop_img, self.cls_engine.img_shape)
             results.append(crop_img)
 
         return results
@@ -140,15 +140,14 @@ class TruckAmbTrtEngine:
 
 if __name__ == "__main__":
     """Debugging."""
-
-    engine = TruckAmbTrtEngine(
-        det_engine_path="tmp/models/yolov8_s_trt8.plan",
-        cls_engine_path="tmp/models/mobilenetv3_large_100_Opset16.plan",
-        det_max_batch_size=1,
+    engine = TruckAmbOnnxEngine(
+        det_engine_path="tmp/models/yolov8_s_ort.onnx",
+        cls_engine_path="tmp/models/mobilenetv3_large_100_Opset16.onnx",
         cls_max_batch_size=1,
         det_categories=[str(i) for i in range(80)],
         cls_categories=["yo" for i in range(1000)],
     )
+
     engine.setup()
 
     img = cv2.imread("tmp/sample001.png")

@@ -53,11 +53,22 @@ class AmbulanceClsTrtEngine(TrtEngine):
         imgs = self.preprocess_imgs(imgs)
 
         # iterate to avoid memory error
+        # outputs: List[np.ndarray] = []
         outputs: List[HostMemBufferSchema] = []
         for i in range(0, len(imgs), self.max_batch_size):
             batch_imgs = imgs[i : i + self.max_batch_size]
             batch_outputs = self.forward(batch_imgs)
-            outputs.extend(batch_outputs)
+            # TODO: bugs. host needs to be copied
+            outputs.extend(
+                [
+                    HostMemBufferSchema(
+                        host=out.host.copy(),
+                        device=out.device,
+                        binding=out.binding,
+                    )
+                    for out in batch_outputs
+                ]
+            )
         results = self.postprocess_outputs(outputs, imgs.shape[0], conf)
 
         return results
