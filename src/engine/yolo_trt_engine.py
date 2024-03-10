@@ -26,9 +26,9 @@ class YoloTrtEngine(TrtEngine):
         engine_path: str,
         max_batch_size: int,
         categories: List[str],
-        end2end: bool = False,
+        end2end: bool = True,
         arch: str = "yolox",
-        pretrained: bool = False,
+        pretrained: bool = True,
         max_det_end2end: int = 100,
     ) -> None:
         """
