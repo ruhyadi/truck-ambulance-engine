@@ -15,6 +15,7 @@ from omegaconf import DictConfig
 from PIL import Image
 
 from src.schema.api_schema import TruckAmbRequestSchema, TruckAmbVidRequestSchema
+from src.schema.yolo_schema import YoloResultSchema
 from src.utils.logger import get_logger
 from src.utils.plotter import PlotUtils
 
@@ -35,6 +36,11 @@ class TruckAmbApi:
 
         self.tmp_path = Path("tmp/temp")
         self.tmp_path.mkdir(parents=True, exist_ok=True)
+
+        self.filtered_cats = [
+            "2",  # car
+            "7",  # truck
+        ]
 
         self.setup_engine()
         self.setup()
@@ -61,7 +67,7 @@ class TruckAmbApi:
 
         # check categories. if null use default
         if self.engine.det_categories is None:
-            self.engine.det_categories = [f"det_{i}" for i in range(80)]  # coco
+            self.engine.det_categories = [str(i) for i in range(80)]  # coco
         if self.engine.cls_categories is None:
             self.engine.cls_categories = [f"cls_{i}" for i in range(1000)]  # imagenet
         self.engine.setup()

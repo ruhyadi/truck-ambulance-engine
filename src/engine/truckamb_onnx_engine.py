@@ -59,6 +59,11 @@ class TruckAmbOnnxEngine:
         self.det_arch = det_arch
         self.det_pretrained = det_pretrained
 
+        self.filterd_cats = [
+            "2",  # car
+            "7",  # truck
+        ]
+
     def setup(self) -> None:
         """Setup Truck-ambulance onnx detection module."""
         log.info(f"Setup truck-ambulance onnx engine")
@@ -107,6 +112,15 @@ class TruckAmbOnnxEngine:
         # classify detected objects
         cls_imgs = self.preprocess_cls(img, det_result)
         cls_result = self.cls_engine.predict(imgs=cls_imgs, conf=cls_conf)
+
+        # filter by categories
+        det_result_ = YoloResultSchema()
+        for i, cat in enumerate(det_result.categories):
+            if cat in self.filterd_cats:
+                det_result_.boxes.append(det_result.boxes[i])
+                det_result_.categories.append(cat)
+                det_result_.scores.append(det_result.scores[i])
+        det_result = det_result_
 
         # merge classification result with detection result
         det_result.categories = [
