@@ -46,16 +46,16 @@ curl -X 'POST' \
   'http://localhost:5100/api/v1/engine/truckamb/detect?detThreshold=0.25&clsThreshold=0.25' \
   -H 'accept: application/json' \
   -H 'Content-Type: multipart/form-data' \
-  -F 'image=@sample.png' \
-  --output prediction.png
+  -F 'image=@assets/sample_001.jpg' \
+  --output tmp/prediction.png
 
 # perform object detection on video
 curl -X 'POST' \
   'http://localhost:5100/api/v1/engine/truckamb/video?detThreshold=0.25&clsThreshold=0.25' \
   -H 'accept: application/json' \
   -H 'Content-Type: multipart/form-data' \
-  -F 'video=@sample.mp4;type=video/mp4' \
-  --output prediction.mp4
+  -F 'video=@assets/sample_001.mp4;type=video/mp4' \
+  --output tmp/prediction.mp4
 ```
 
 

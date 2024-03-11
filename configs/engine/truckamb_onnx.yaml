@@ -2,7 +2,7 @@
 
 truckamb:
   det_engine_path: tmp/models/yolov8_s_ort.onnx
-  cls_engine_path: tmp/models/ambulance.onnx
+  cls_engine_path: tmp/models/ambulance_cls.onnx
   cls_max_batch_size: 1
   det_provider: cpu
   cls_provider: cpu

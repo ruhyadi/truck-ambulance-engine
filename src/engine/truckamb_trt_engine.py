@@ -150,23 +150,3 @@ class TruckAmbTrtEngine:
             results.append(crop_img)
 
         return results
-
-
-if __name__ == "__main__":
-    """Debugging."""
-
-    engine = TruckAmbTrtEngine(
-        det_engine_path="tmp/models/yolov8_s_trt8.plan",
-        cls_engine_path="tmp/models/mobilenetv3_large_100_Opset16.plan",
-        det_max_batch_size=1,
-        cls_max_batch_size=1,
-        det_categories=[str(i) for i in range(80)],
-        cls_categories=["yo" for i in range(1000)],
-    )
-    engine.setup()
-
-    img = cv2.imread("tmp/sample001.png")
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-
-    result = engine.predict(img=img, det_conf=0.25, cls_conf=0.25)
-    log.warning(f"Result: {result}")
