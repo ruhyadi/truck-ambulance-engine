@@ -108,7 +108,7 @@ class AmbulanceClsTrtEngine(TrtEngine):
             output = np.apply_along_axis(self.softmax_np, 0, outputs[i].host)
             score = round(output.max(), 2)
             if score > conf:
-                category = self.categories[np.argmax(output)]
+                category = self.categories[int(np.argmax(output))]
                 result.categories.append(category)
                 result.scores.append(score)
             else:

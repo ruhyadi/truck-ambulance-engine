@@ -2,7 +2,7 @@
 
 truckamb:
   det_engine_path: tmp/models/yolov8_s_ort.onnx
-  cls_engine_path: tmp/models/mobilenetv3_large_100_Opset16.onnx
+  cls_engine_path: tmp/models/ambulance.onnx
   cls_max_batch_size: 1
   det_provider: cpu
   cls_provider: cpu
@@ -10,4 +10,6 @@ truckamb:
   det_arch: yolov8
   det_pretrained: True
   det_categories: null
-  cls_categories: null
+  cls_categories: 
+    - ambulance
+    - car

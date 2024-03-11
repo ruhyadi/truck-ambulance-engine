@@ -102,7 +102,7 @@ class AmbulanceClsOnnxEngine(OnnxEngine):
             output = np.apply_along_axis(self.softmax_np, 1, outputs[i])
             score = round(output.max(), 2)
             if score > conf:
-                category = self.categories[np.argmax(output)]
+                category = self.categories[int(np.argmax(output))]
                 result.categories.append(category)
                 result.scores.append(score)
             else:
