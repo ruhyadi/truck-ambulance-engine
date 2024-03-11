@@ -1,0 +1,14 @@
+version: "3"
+
+services:
+  truckamb-api:
+    container_name: truckamb-api
+    image: ruhyadi/truckamb:v1.0.0-cpu
+    restart: always
+    env_file: .env
+    tty: true
+    ports:
+      - ${API_PORT}:${API_PORT}
+    expose:
+      - ${API_PORT}
+    command: python src/main.py
