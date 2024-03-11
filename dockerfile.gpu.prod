@@ -14,10 +14,10 @@ RUN pip install --no-cache-dir --upgrade pip && \
 RUN rm /tmp/requirements.txt
 
 # working directory
-WORKDIR /workspace
+WORKDIR /app
 
 # copy file
 COPY . .
-    
+
 # entrypoint
 CMD ["bash"]

@@ -17,6 +17,46 @@ git clone https://github.com/ruhyadi/truck-ambulance-engine
 There is two type of devcontainer you can choose: `gpu-devel` and `cpu-devel`. If you have a GPU, you can choose `gpu-devel` and if you don't have a GPU, you can choose `cpu-devel`. You can choose the devcontainer by pressing `F1` and type `Remote-Containers: Rebuild Container` (or `Reopen in Container`). Then, choose the devcontainer you want to use.
 
 ### Production
+In order to run production engine you need to clone the repository to your local machine by:
+```bash
+git clone https://github.com/ruhyadi/truck-ambulance-engine
+```
+The easiest way to run the engine in production is by using the docker image. You can pull the docker image from the docker hub by:
+```bash
+docker pull ruhyadi/truckamb:v{VERSION}-{PROVIDER}
+
+# example
+docker pull ruhyadi/truckamb:v1.0.0-gpu
+```
+Next, you need to create `.env` file in the root of the repository and fill the environment variables. You can use the `.env.example` as a template. Then, you can run the docker container with docker comose by:
+```bash
+docker compose -f docker-compose.prod.api.yaml up 
+```
+The container will run REST API server on port `{API_PORT}` (see `.env` file). You can access the swagger documentation by opening the browser and go to `http://localhost:{API_PORT}`.
+
+#### API Endpoints
+The engine provides two endpoints:
+- `/api/v1/engine/truckamb/snapshot`: to perform object detection on images
+- `/api/v1/engine/truckamb/video`: to perform object detection on videos
+
+You can use `curl` to perform object detection on images and videos. For example:
+```bash
+# perform object detection on image
+curl -X 'POST' \
+  'http://localhost:5100/api/v1/engine/truckamb/detect?detThreshold=0.25&clsThreshold=0.25' \
+  -H 'accept: application/json' \
+  -H 'Content-Type: multipart/form-data' \
+  -F 'image=@sample.png' \
+  --output prediction.png
+
+# perform object detection on video
+curl -X 'POST' \
+  'http://localhost:5100/api/v1/engine/truckamb/video?detThreshold=0.25&clsThreshold=0.25' \
+  -H 'accept: application/json' \
+  -H 'Content-Type: multipart/form-data' \
+  -F 'video=@sample.mp4;type=video/mp4' \
+  --output prediction.mp4
+```
 
 
 ## Acknowledgements
