@@ -1,0 +1,13 @@
+# Truck ambulance tensorrt configs
+
+truckamb:
+  det_engine_path: tmp/models/yolov8_s_trt8.plan
+  cls_engine_path: tmp/models/mobilenetv3_large_100_Opset16.plan
+  det_max_batch_size: 1
+  cls_max_batch_size: 1
+  det_end2end: true
+  det_arch: yolov8
+  det_pretrained: True
+  det_max_det_end2end: 100
+  det_categories: null
+  cls_categories: null

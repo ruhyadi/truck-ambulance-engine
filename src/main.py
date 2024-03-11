@@ -1,83 +1,58 @@
-"""
-Main detection function.
-usage:
-python src/main.py \
-    +input_file=tmp/sample001.png \
-    +output_path=tmp/outputs
-"""
+"""Main function."""
 
 import rootutils
 
 ROOT = rootutils.autosetup()
 
-from pathlib import Path
-
-import cv2
 import hydra
 from omegaconf import DictConfig
 
 from src.utils.logger import get_logger
-from src.utils.plotter import PlotUtils
 
 log = get_logger()
 
+def main_api(cfg: DictConfig) -> None:
+    """Run api server."""
+    from fastapi import FastAPI
+    from fastapi.middleware.cors import CORSMiddleware
 
-def detection(cfg: DictConfig) -> None:
-    """Detection main function."""
-    log.info(f"Start detection...")
+    from src.api.truckamb_api import TruckAmbApi
+    from src.api.server import UvicornServer
 
-    # additional configs
-    conf = 0.25 if "conf" not in cfg else cfg.conf
-    nms = 0.45 if "nms" not in cfg else cfg.nms
-    input_file = Path(cfg.input_file)
-    output_path = Path(cfg.output_path) if "output_path" in cfg else Path("tmp/outputs")
-    output_path.mkdir(parents=True, exist_ok=True)
-    output_file = output_path / input_file.name
+    log.info(f"Starting API server")
 
-    # setup plotter
-    plotter = PlotUtils()
-
-    # setup engine
-    if cfg.engine.yolo.engine_path.endswith(".plan"):
-        from src.engine.yolo_trt_engine import YoloTrtEngine
-
-        engine = YoloTrtEngine(**cfg.engine.yolo)
-        engine.setup()
-    elif cfg.engine.yolo.engine_path.endswith(".onnx"):
-        from src.engine.yolo_onnx_engine import YoloOnnxEngine
-
-        engine = YoloOnnxEngine(**cfg.engine.yolo)
-        engine.setup()
-    else:
-        raise ValueError(f"Unknown engine type: {cfg.engine.yolo.engine_path}")
-
-    # run detection
-    img = cv2.imread(str(input_file))
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    plotter.setup(img)
-
-    result = engine.predict(imgs=[img], conf=conf, nms=nms)[0]
-
-    # draw predictions
-    img = plotter.draw_boxes(
-        frame=img,
-        boxes=result.boxes,
-        labels=result.categories,
+    app = FastAPI(
+        title="Truck/Ambulance Detection API",
+        description="Truck/Ambulance detection REST API",
+        version="1.0.0",
+        docs_url="/",
     )
 
-    # save output
-    img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-    cv2.imwrite(str(output_file), img)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=cfg.api.middleware.cors.allow_origins,
+        allow_credentials=cfg.api.middleware.cors.allow_credentials,
+        allow_methods=cfg.api.middleware.cors.allow_methods,
+        allow_headers=cfg.api.middleware.cors.allow_headers,
+    )
 
-    log.info(f"Detection done. Output: {output_file}")
+    truckamb_api = TruckAmbApi(cfg)
+    app.include_router(truckamb_api.router)
+
+    server = UvicornServer(
+        app,
+        host=cfg.api.host,
+        port=cfg.api.port,
+        workers=cfg.api.workers,
+    )
+    server.run()
 
 
 if __name__ == "__main__":
-    """Main function."""
 
     @hydra.main(config_path=f"{ROOT}/configs", config_name="main", version_base=None)
     def main(cfg: DictConfig) -> None:
         """Main function."""
-        detection(cfg)
+        main_api(cfg)
 
     main()

@@ -53,7 +53,6 @@ class AmbulanceClsTrtEngine(TrtEngine):
         imgs = self.preprocess_imgs(imgs)
 
         # iterate to avoid memory error
-        # outputs: List[np.ndarray] = []
         outputs: List[HostMemBufferSchema] = []
         for i in range(0, len(imgs), self.max_batch_size):
             batch_imgs = imgs[i : i + self.max_batch_size]
