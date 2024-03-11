@@ -5,6 +5,7 @@ import rootutils
 ROOT = rootutils.autosetup()
 
 from io import BytesIO
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -13,8 +14,7 @@ from fastapi.responses import StreamingResponse
 from omegaconf import DictConfig
 from PIL import Image
 
-from src.schema.api_schema import TruckAmbRequestSchema
-from src.schema.yolo_schema import YoloResultSchema
+from src.schema.api_schema import TruckAmbRequestSchema, TruckAmbVidRequestSchema
 from src.utils.logger import get_logger
 from src.utils.plotter import PlotUtils
 
@@ -32,6 +32,9 @@ class TruckAmbApi:
 
         # plot utils
         self.plotter = PlotUtils()
+
+        self.tmp_path = Path("tmp/temp")
+        self.tmp_path.mkdir(parents=True, exist_ok=True)
 
         self.setup_engine()
         self.setup()
@@ -67,7 +70,7 @@ class TruckAmbApi:
         """Setup the API."""
 
         @self.router.post(
-            "/api/v1/engine/truckamb/detect",
+            "/api/v1/engine/truckamb/snapshot",
             tags=["engine"],
             summary="Truck/Ambulance detection",
         )
@@ -91,6 +94,47 @@ class TruckAmbApi:
             buffer.seek(0)
 
             return StreamingResponse(buffer, media_type="image/jpeg")
+
+        @self.router.post(
+            "/api/v1/engine/truckamb/video",
+            tags=["engine"],
+            summary="Truck/Ambulance detection",
+        )
+        async def detect_video(form: TruckAmbVidRequestSchema = Depends()):
+            """Detect truck/ambulance in a video."""
+            vid = await form.video.read()
+            vid_file = self.tmp_path / "temp.mp4"
+            out_file = self.tmp_path / "output.mp4"
+            with open(str(vid_file), "wb") as f:
+                f.write(vid)
+
+            # read video
+            cap = cv2.VideoCapture(str(vid_file))
+            frame_width = int(cap.get(3))
+            frame_height = int(cap.get(4))
+            cap_fps = int(cap.get(cv2.CAP_PROP_FPS))
+            out = cv2.VideoWriter(
+                str(out_file),
+                cv2.VideoWriter_fourcc(*"mp4v"),
+                cap_fps,
+                (frame_width, frame_height),
+            )
+
+            while cap.isOpened():
+                ret, frame = cap.read()
+                self.plotter.setup(frame)
+                if not ret:
+                    break
+                det_result = self.engine.predict(frame)
+                frame = self.plotter.draw_boxes(
+                    frame, det_result.boxes, det_result.categories
+                )
+                out.write(frame)
+
+            cap.release()
+            out.release()
+
+            return StreamingResponse(str(out_file), media_type="video/mp4")
 
     async def preprocess_img_bytes(self, img_bytes: bytes) -> np.ndarray:
         """Preprocess image bytes."""

@@ -14,3 +14,11 @@ class TruckAmbRequestSchema(BaseModel):
     image: UploadFile = File(...)
     detThreshold: float = Field(0.25, ge=0, le=1)
     clsThreshold: float = Field(0.25, ge=0, le=1)
+
+
+class TruckAmbVidRequestSchema(BaseModel):
+    """Truck ambulance engine request."""
+
+    video: UploadFile = File(...)
+    detThreshold: float = Field(0.25, ge=0, le=1)
+    clsThreshold: float = Field(0.25, ge=0, le=1)
