@@ -10,7 +10,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 from fastapi import APIRouter, Depends, FastAPI
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from omegaconf import DictConfig
 from PIL import Image
 
@@ -134,7 +134,7 @@ class TruckAmbApi:
             cap.release()
             out.release()
 
-            return StreamingResponse(str(out_file), media_type="video/mp4")
+            return FileResponse(str(out_file))
 
     async def preprocess_img_bytes(self, img_bytes: bytes) -> np.ndarray:
         """Preprocess image bytes."""
